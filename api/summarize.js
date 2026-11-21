@@ -45,8 +45,7 @@ export default async function handler(req, res) {
   if (text?.trim()) parts.push({ text: "NOTES:\n" + text });
   if (file?.data) parts.push({ inlineData: { mimeType: file.mimeType, data: file.data } });
 
-  try {
-      const MODELS = [MODEL, "gemini-3.5-flash"];
+  const MODELS = [MODEL, "gemini-3.5-flash"];
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const ai = new GoogleGenAI({ apiKey });
   const config = mode === "quiz"
@@ -69,8 +68,8 @@ export default async function handler(req, res) {
         lastErr = err;
         const msg = String(err?.message || err);
         const busy = /503|UNAVAILABLE|429|overloaded|high demand/i.test(msg);
-        if (!busy) break; // not a busy error, so try the next model
-        await wait(1500 * (attempt + 1)); // wait a little, then retry
+        if (!busy) break;
+        await wait(1500 * (attempt + 1));
       }
     }
   }
@@ -79,13 +78,4 @@ export default async function handler(req, res) {
   return res.status(500).json({
     error: "AI request failed: " + String(lastErr?.message || lastErr).slice(0, 300),
   });
-}
-    });
-    const out = response.text;
-    if (mode === "quiz") return res.status(200).json({ quiz: JSON.parse(out) });
-    return res.status(200).json({ markdown: out });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "AI request failed: " + (err?.message || String(err)).slice(0, 300) });
-  }
 }
