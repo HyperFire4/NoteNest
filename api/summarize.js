@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 
 const MODEL = "gemini-3.8-flash"; // change here if Google AI Studio shows a different name
 
@@ -49,9 +49,13 @@ export default async function handler(req, res) {
   const BUDGET_MS = 50000; // stop before Vercel's 60s limit
   const MODELS = [MODEL, "gemini-3.5-flash", "gemini-3.5-flash"];
   const ai = new GoogleGenAI({ apiKey });
-  const config = mode === "quiz"
-    ? { responseMimeType: "application/json", responseSchema: quizSchema }
-    : {};
+  // "low" thinking = noticeably faster answers
+  const config = {
+    thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+    ...(mode === "quiz"
+      ? { responseMimeType: "application/json", responseSchema: quizSchema }
+      : {}),
+  };
   let lastErr;
 
   for (const model of MODELS) {
