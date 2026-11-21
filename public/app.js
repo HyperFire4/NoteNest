@@ -52,7 +52,7 @@ $("go").onclick = async () => {
   } catch (err) {
     $("error").textContent = err.message;
   } finally {
-    $("go").disabled = false; $("go").textContent = "Summarize notes";
+    $("go").disabled = false; $("go").textContent = "Summarize notes →";
   }
 };
 
@@ -101,3 +101,18 @@ $("copy").onclick = async () => {
   catch { $("copy").textContent = "Copy failed"; }
   setTimeout(() => ($("copy").textContent = "Copy Markdown"), 1500);
 };
+
+// ---- PWA: service worker + install button ----
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+let installEvent = null;
+addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault(); installEvent = e; $("install").hidden = false;
+});
+$("install").onclick = async () => {
+  if (!installEvent) return;
+  installEvent.prompt(); await installEvent.userChoice;
+  installEvent = null; $("install").hidden = true;
+};
+addEventListener("appinstalled", () => ($("install").hidden = true));
