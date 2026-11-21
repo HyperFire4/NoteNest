@@ -46,14 +46,40 @@ export default async function handler(req, res) {
   if (file?.data) parts.push({ inlineData: { mimeType: file.mimeType, data: file.data } });
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const config = mode === "quiz"
-      ? { responseMimeType: "application/json", responseSchema: quizSchema }
-      : {};
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: [{ role: "user", parts }],
-      config,
+      const MODELS = [MODEL, "gemini-3.5-flash"];
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ai = new GoogleGenAI({ apiKey });
+  const config = mode === "quiz"
+    ? { responseMimeType: "application/json", responseSchema: quizSchema }
+    : {};
+  let lastErr;
+
+  for (const model of MODELS) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: [{ role: "user", parts }],
+          config,
+        });
+        const out = response.text;
+        if (mode === "quiz") return res.status(200).json({ quiz: JSON.parse(out) });
+        return res.status(200).json({ markdown: out });
+      } catch (err) {
+        lastErr = err;
+        const msg = String(err?.message || err);
+        const busy = /503|UNAVAILABLE|429|overloaded|high demand/i.test(msg);
+        if (!busy) break; // not a busy error, so try the next model
+        await wait(1500 * (attempt + 1)); // wait a little, then retry
+      }
+    }
+  }
+
+  console.error(lastErr);
+  return res.status(500).json({
+    error: "AI request failed: " + String(lastErr?.message || lastErr).slice(0, 300),
+  });
+}
     });
     const out = response.text;
     if (mode === "quiz") return res.status(200).json({ quiz: JSON.parse(out) });
