@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Note Summarizer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;600;800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Turn messy notes into something you can study</h1>
+    <button id="theme" type="button" aria-label="Switch light or dark theme">Theme</button>
+  </header>
+
+  <section class="panel">
+    <label for="text">Paste your notes</label>
+    <textarea id="text" rows="8" placeholder="Paste lecture text here"></textarea>
+
+    <label for="file">Or upload a PDF or photo of handwritten notes (max 3 MB)</label>
+    <input id="file" type="file" accept="application/pdf,image/*">
+    <p id="fileinfo" class="hint"></p>
+
+    <div class="row">
+      <div>
+        <label for="mode">What do you want?</label>
+        <select id="mode">
+          <option value="bullets">Concise Bullet Summary</option>
+          <option value="cheatsheet">Exam Cheat Sheet (Definitions &amp; Formulas)</option>
+          <option value="quiz">Interactive 5-Question Quiz</option>
+        </select>
+      </div>
+      <button id="go" type="button" class="primary">Summarize notes</button>
+    </div>
+    <p id="error" class="error" role="alert"></p>
+  </section>
+
+  <section id="result" class="panel" hidden>
+    <div id="resultbar"><button id="copy" type="button">Copy Markdown</button></div>
+    <div id="output"></div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
