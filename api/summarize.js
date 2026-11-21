@@ -45,8 +45,9 @@ export default async function handler(req, res) {
   if (text?.trim()) parts.push({ text: "NOTES:\n" + text });
   if (file?.data) parts.push({ inlineData: { mimeType: file.mimeType, data: file.data } });
 
-  const MODELS = [MODEL, "gemini-3.5-flash"];
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const started = Date.now();
+  const BUDGET_MS = 50000; // stop before Vercel's 60s limit
+  const MODELS = [MODEL, "gemini-3.5-flash", "gemini-3.5-flash"];
   const ai = new GoogleGenAI({ apiKey });
   const config = mode === "quiz"
     ? { responseMimeType: "application/json", responseSchema: quizSchema }
@@ -54,28 +55,33 @@ export default async function handler(req, res) {
   let lastErr;
 
   for (const model of MODELS) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: [{ role: "user", parts }],
-          config,
-        });
-        const out = response.text;
-        if (mode === "quiz") return res.status(200).json({ quiz: JSON.parse(out) });
-        return res.status(200).json({ markdown: out });
-      } catch (err) {
-        lastErr = err;
-        const msg = String(err?.message || err);
-        const busy = /503|UNAVAILABLE|429|overloaded|high demand/i.test(msg);
-        if (!busy) break;
-        await wait(1500 * (attempt + 1));
-      }
+    const remaining = BUDGET_MS - (Date.now() - started);
+    if (remaining < 8000) break;
+    const limit = Math.min(28000, remaining);
+    let timer;
+    try {
+      const call = ai.models.generateContent({
+        model,
+        contents: [{ role: "user", parts }],
+        config,
+      });
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("TIMEOUT: " + model + " took too long")), limit);
+      });
+      const response = await Promise.race([call, timeout]);
+      clearTimeout(timer);
+      const out = response.text;
+      if (mode === "quiz") return res.status(200).json({ quiz: JSON.parse(out) });
+      return res.status(200).json({ markdown: out });
+    } catch (err) {
+      clearTimeout(timer);
+      lastErr = err;
+      console.error(model, String(err?.message || err));
     }
   }
 
-  console.error(lastErr);
   return res.status(500).json({
-    error: "AI request failed: " + String(lastErr?.message || lastErr).slice(0, 300),
+    error: "AI request failed: " + String(lastErr?.message || lastErr || "out of time").slice(0, 300) +
+      " (Google may be busy or the file is too big. Wait a minute, or try a shorter PDF.)",
   });
 }
