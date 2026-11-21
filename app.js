@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const MAX_BYTES = 3 * 1024 * 1024;
+const MAX_BYTES = 2 * 1024 * 1024;
 let fileData = null;   // { mimeType, data }
 let markdown = "";     // text used by "Copy Markdown"
 
@@ -20,7 +20,7 @@ $("file").onchange = (e) => {
   if (!f) return;
   if (f.size > MAX_BYTES) {
     e.target.value = "";
-    $("error").textContent = "That file is over 3 MB. Try a smaller file or a lower-resolution photo.";
+    $("error").textContent = "That file is over 2 MB. Try a smaller file or a lower-resolution photo.";
     return;
   }
   const reader = new FileReader();
@@ -44,8 +44,10 @@ $("go").onclick = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, file: fileData, mode }),
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Something went wrong. Try again.");
+    const raw = await res.text();
+    let data = {};
+    try { data = JSON.parse(raw); } catch {}
+    if (!res.ok) throw new Error(data.error || `Server error ${res.status}: ${raw.slice(0, 150)}`);
     show(mode, data);
   } catch (err) {
     $("error").textContent = err.message;
