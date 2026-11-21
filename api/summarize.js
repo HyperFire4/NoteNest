@@ -60,6 +60,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ markdown: out });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "The AI request failed. Check your API key and model name, then try again." });
+    return res.status(500).json({ error: "AI request failed: " + (err?.message || String(err)).slice(0, 300) });
   }
 }
