@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 
-const MODEL = "gemini-3.8-flash"; // change here if Google AI Studio shows a different name
+const MODEL = "gemini-3.5-flash-lite"; // change here if Google AI Studio shows a different name
 
 const PROMPTS = {
   bullets:
