@@ -50,3 +50,15 @@ button:disabled{opacity:.6;cursor:wait}
 .perks{list-style:none;display:flex;flex-wrap:wrap;gap:8px 20px;padding:0;margin:8px 0 0;color:var(--muted);font-size:.92rem}
 .perks li::before{content:"\2713";color:var(--accent);font-weight:800;margin-right:8px}
 @media (prefers-reduced-motion:no-preference){button{transition:transform .12s,box-shadow .12s}button:active{transform:scale(.98)}}
+
+.filebtns{display:flex;gap:8px;margin-top:8px}
+.fc{display:flex;align-items:center;justify-content:center;text-align:center;width:100%;min-height:200px;padding:24px;font-size:1.2rem;font-weight:600;border-radius:20px;background:var(--field)}
+.fc.flip{border-color:var(--accent2);font-weight:500}
+.fcact{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.hhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.hrow{display:flex;gap:8px;margin-bottom:8px}
+.hopen{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+dialog{max-width:440px;width:calc(100% - 32px);color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+dialog::backdrop{background:rgba(10,8,30,.55)}
+dialog h3{margin:0 0 8px}
+@media print{body *{visibility:hidden}#result,#result *{visibility:visible}#result{position:absolute;left:0;top:0;width:100%;box-shadow:none;border:0;background:#fff;color:#000}#resultbar,.bg{display:none}.opt{border:1px solid #999}}

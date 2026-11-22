@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const MAX_BYTES = 2 * 1024 * 1024;
-let fileData = null;   // { mimeType, data }
+let pages = [];   // { mimeType, data }
 let markdown = "";     // text used by "Copy Markdown"
 
 // ---- Theme (remembers choice) ----
@@ -50,56 +50,24 @@ const toBase64 = (f) => new Promise((res, rej) => {
   r.readAsDataURL(f);
 });
 
-$("file").onchange = async (e) => {
-  const f = e.target.files[0];
-  fileData = null; extractedText = ""; $("fileinfo").textContent = ""; $("error").textContent = "";
-  if (!f) return;
-  const x = ext(f.name);
-  const office = x === "docx" || x === "pptx";
-  const plain = x === "txt" || x === "md";
-  const reset = (msg) => { e.target.value = ""; $("error").textContent = msg; };
-
-  if (x === "doc" || x === "ppt") return reset("Old .doc/.ppt files aren't supported. Open it and use Save As .docx / .pptx first.");
-  if (f.size > (office || plain ? OFFICE_MAX : MAX_BYTES)) {
-    return reset(office || plain ? "That file is over 15 MB." : "That file is over 2 MB. Try a smaller file or a lower-resolution photo.");
-  }
-  try {
-    $("fileinfo").textContent = "Reading " + f.name + "...";
-    if (office) {
-      const buf = await f.arrayBuffer();
-      extractedText = (x === "docx" ? await readDocx(buf) : await readPptx(buf)).trim();
-      if (!extractedText) throw new Error("No text found");
-    } else if (plain) {
-      extractedText = (await f.text()).trim();
-    } else {
-      fileData = { mimeType: f.type || "application/pdf", data: await toBase64(f) };
-    }
-    extractedText = extractedText.slice(0, TEXT_CAP);
-    $("fileinfo").textContent = "Ready: " + f.name + (extractedText ? " (" + extractedText.length.toLocaleString() + " characters read)" : "");
-  } catch (err) {
-    reset("Couldn't read that file. If it's empty or only has pictures, try exporting it as a PDF.");
-    $("fileinfo").textContent = "";
-  }
-};
-
 // ---- Send to backend ----
 $("go").onclick = async () => {
   const text = [$("text").value, extractedText].filter(Boolean).join("\n\n"), mode = $("mode").value;
   $("error").textContent = "";
-  if (!text.trim() && !fileData) { $("error").textContent = "Paste some notes or upload a file first."; return; }
+  if (!text.trim() && !pages.length) { $("error").textContent = "Paste some notes or upload a file first."; return; }
 
   $("go").disabled = true; $("go").textContent = "Working...";
   try {
     const res = await fetch("/api/summarize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, file: fileData, mode }),
+      body: JSON.stringify({ text, files: pages, mode }),
     });
     const raw = await res.text();
     let data = {};
     try { data = JSON.parse(raw); } catch {}
     if (!res.ok) throw new Error(data.error || `Server error ${res.status}: ${raw.slice(0, 150)}`);
-    show(mode, data);
+    show(mode, data); remember(mode, data, text);
   } catch (err) {
     $("error").textContent = err.message;
   } finally {
@@ -111,6 +79,7 @@ function show(mode, data) {
   $("result").hidden = false;
   const out = $("output");
   if (mode === "quiz") return renderQuiz(data.quiz.questions, out);
+  if (mode === "flashcards") return renderCards(data.cards.cards, out);
   markdown = data.markdown;
   out.innerHTML = marked.parse(markdown);
   $("result").scrollIntoView({ behavior: "smooth" });
@@ -167,3 +136,103 @@ $("install").onclick = async () => {
   installEvent = null; $("install").hidden = true;
 };
 addEventListener("appinstalled", () => ($("install").hidden = true));
+
+// ---- Helpers ----
+const L = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const S = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt) n.textContent = txt; if (tag === "button") n.type = "button"; return n; };
+const LABEL = { bullets: "Summary", cheatsheet: "Cheat sheet", quiz: "Quiz", flashcards: "Flashcards" };
+
+// ---- Files: several at once, camera, photos shrunk before sending ----
+const PDF_MAX = 2 * 1024 * 1024, B64_TOTAL = 3200000;
+async function shrink(f) {
+  const bmp = await createImageBitmap(f), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.82).split(",")[1];
+}
+function updateInfo() {
+  const n = pages.length, t = extractedText.length;
+  $("fileinfo").textContent = n || t ? "Ready: " + (n ? n + " page/file(s)" : "") + (n && t ? " + " : "") + (t ? t.toLocaleString() + " characters of text" : "") : "";
+  $("clearfiles").hidden = !(n || t);
+}
+async function addFiles(list, input) {
+  $("error").textContent = "";
+  try {
+    for (const f of list) {
+      const x = ext(f.name);
+      if (x === "doc" || x === "ppt") throw new Error("Old .doc/.ppt files aren't supported. Save as .docx / .pptx first.");
+      $("fileinfo").textContent = "Reading " + f.name + "...";
+      if (["docx", "pptx", "txt", "md"].includes(x)) {
+        if (f.size > OFFICE_MAX) throw new Error(f.name + " is over 15 MB.");
+        const t = x === "txt" || x === "md" ? await f.text() : x === "docx" ? await readDocx(await f.arrayBuffer()) : await readPptx(await f.arrayBuffer());
+        if (!t.trim()) throw new Error("No text found in " + f.name + ". Try exporting it as a PDF.");
+        extractedText += (extractedText ? "\n\n" : "") + "### " + f.name + "\n" + t.trim();
+      } else if (f.type.startsWith("image/")) {
+        pages.push({ name: f.name, mimeType: "image/jpeg", data: await shrink(f) });
+      } else {
+        if (f.size > PDF_MAX) throw new Error(f.name + " is over 2 MB.");
+        pages.push({ name: f.name, mimeType: f.type || "application/pdf", data: await toBase64(f) });
+      }
+      if (pages.reduce((n, p) => n + p.data.length, 0) > B64_TOTAL) { pages.pop(); throw new Error("Too much to send at once. Remove some pages."); }
+    }
+    extractedText = extractedText.slice(0, TEXT_CAP);
+  } catch (err) { $("error").textContent = err.message || "Couldn't read that file."; }
+  input.value = ""; updateInfo();
+}
+$("file").onchange = (e) => addFiles(e.target.files, e.target);
+$("camfile").onchange = (e) => addFiles(e.target.files, e.target);
+$("cam").onclick = () => $("camfile").click();
+$("clearfiles").onclick = () => { pages = []; extractedText = ""; updateInfo(); };
+
+// ---- Flashcards ----
+function renderCards(cards, out) {
+  markdown = cards.map((c, n) => `**${n + 1}. ${c.front}**\n\n${c.back}\n`).join("\n");
+  let deck = cards.slice(), i = 0, missed = [], got = 0;
+  const restart = (d) => { deck = d; missed = []; i = 0; got = 0; draw(); };
+  const draw = () => {
+    out.innerHTML = "";
+    if (i >= deck.length) {
+      out.append(el("div", "score", `Round done: ${got} got it, ${missed.length} to review`));
+      const row = el("div", "fcact");
+      if (missed.length) { const b = el("button", "primary", "Review missed cards"); const m = missed; b.onclick = () => restart(m); row.append(b); }
+      const again = el("button", null, "Start over"); again.onclick = () => restart(cards.slice());
+      row.append(again); out.append(row); return;
+    }
+    const c = deck[i], card = el("button", "fc", c.front), acts = el("div", "fcact");
+    let back = false; acts.hidden = true;
+    card.onclick = () => { back = !back; card.textContent = back ? c.back : c.front; card.classList.toggle("flip", back); acts.hidden = !back; };
+    const no = el("button", null, "Review again"), yes = el("button", "primary", "Got it");
+    no.onclick = () => { missed.push(c); i++; draw(); };
+    yes.onclick = () => { got++; i++; draw(); };
+    acts.append(no, yes);
+    out.append(card, el("p", "hint", `Tap the card to flip. Card ${i + 1} of ${deck.length}`), acts);
+  };
+  draw(); $("result").scrollIntoView({ behavior: "smooth" });
+}
+
+// ---- History (saved on this device only) ----
+function remember(mode, data, text) {
+  const title = (text.trim().slice(0, 60) || pages.map((p) => p.name).join(", ") || "Untitled").replace(/\s+/g, " ");
+  const h = L("nn_hist", []); h.unshift({ id: Date.now(), mode, title, data });
+  S("nn_hist", h.slice(0, 25)); drawHistory();
+}
+function drawHistory() {
+  const h = L("nn_hist", []), box = $("histlist");
+  box.innerHTML = ""; $("history").hidden = !h.length;
+  h.forEach((it) => {
+    const row = el("div", "hrow"), open = el("button", "hopen", (LABEL[it.mode] || "Result") + ": " + it.title), del = el("button", null, "Delete");
+    open.onclick = () => show(it.mode, it.data);
+    del.onclick = () => { S("nn_hist", L("nn_hist", []).filter((x) => x.id !== it.id)); drawHistory(); };
+    row.append(open, del); box.append(row);
+  });
+}
+$("clearhist").onclick = () => { S("nn_hist", []); drawHistory(); };
+drawHistory();
+
+// ---- PDF export + first-launch guide ----
+$("pdf").onclick = () => window.print();
+$("help").onclick = () => { try { $("intro").showModal(); } catch {} };
+$("introok").onclick = () => { S("nn_seen", true); $("intro").close(); };
+if (!L("nn_seen", false)) { try { $("intro").showModal(); } catch {} }

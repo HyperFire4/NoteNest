@@ -1,4 +1,4 @@
-const CACHE = "notenest-v3";
+const CACHE = "notenest-v4";
 const SHELL = ["/", "/index.html", "/style.css", "/app.js", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {

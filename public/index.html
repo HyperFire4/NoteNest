@@ -21,6 +21,7 @@
     <span class="brand"><svg class="logo" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6a4cff"/><stop offset="1" stop-color="#c26bff"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#lg)"/><rect x="9" y="6.5" width="14" height="19" rx="2.5" fill="#fff"/><rect x="12" y="11" width="8" height="2" rx="1" fill="#6a4cff"/><rect x="12" y="15" width="8" height="2" rx="1" fill="#6a4cff"/><rect x="12" y="19" width="5" height="2" rx="1" fill="#6a4cff"/></svg>NoteNest</span>
     <span class="navbtns">
       <button id="install" type="button" hidden>Install app</button>
+      <button id="help" type="button" aria-label="How to use">?</button>
       <button id="theme" type="button" aria-label="Switch light or dark theme">Theme</button>
     </span>
   </nav>
@@ -37,8 +38,10 @@
     <textarea id="text" rows="7" placeholder="Paste lecture text here"></textarea>
 
     <label for="file">Or upload a file <span class="hint">(PDF, Word, PowerPoint, text or a photo of handwriting)</span></label>
-    <input id="file" type="file" accept=".pdf,.docx,.pptx,.txt,.md,image/*">
+    <input id="file" type="file" multiple accept=".pdf,.docx,.pptx,.txt,.md,image/*">
     <p id="fileinfo" class="hint"></p>
+    <div class="filebtns"><button id="cam" type="button">Take photo</button><button id="clearfiles" type="button" hidden>Clear files</button></div>
+    <input id="camfile" type="file" accept="image/*" capture="environment" hidden>
 
     <div class="row">
       <div>
@@ -46,6 +49,7 @@
         <select id="mode">
           <option value="bullets">Concise Bullet Summary</option>
           <option value="cheatsheet">Exam Cheat Sheet (Definitions &amp; Formulas)</option>
+          <option value="flashcards">Flashcards (flip &amp; review)</option>
           <option value="quiz">Interactive 5-Question Quiz</option>
         </select>
       </div>
@@ -55,14 +59,17 @@
   </section>
 
   <section id="result" class="card" hidden>
-    <div id="resultbar"><button id="copy" type="button">Copy Markdown</button></div>
+    <div id="resultbar"><button id="pdf" type="button">Save as PDF</button> <button id="copy" type="button">Copy Markdown</button></div>
     <div id="output"></div>
   </section>
+
+  <section id="history" class="card" hidden><div class="hhead"><strong>Recent (saved on this device)</strong><button id="clearhist" type="button">Clear all</button></div><div id="histlist"></div></section>
 
   <ul class="perks">
     <li>No sign-up needed</li><li>Handwriting and PDFs work</li><li>Summary, cheat sheet and quiz</li>
   </ul>
 </main>
+<dialog id="intro"><h3>Welcome to NoteNest</h3><ol><li>Paste notes, or add a PDF, Word, PowerPoint or photos (several pages are fine).</li><li>Pick a summary, cheat sheet, quiz or flashcards.</li><li>Recent results are saved on this device only.</li></ol><button id="introok" type="button" class="primary">Got it</button></dialog>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
