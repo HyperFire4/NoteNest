@@ -13,27 +13,78 @@ $("theme").onclick = () => {
   localStorage.setItem("theme", next);
 };
 
-// ---- File -> base64 ----
-$("file").onchange = (e) => {
-  const f = e.target.files[0];
-  fileData = null; $("fileinfo").textContent = ""; $("error").textContent = "";
-  if (!f) return;
-  if (f.size > MAX_BYTES) {
-    e.target.value = "";
-    $("error").textContent = "That file is over 2 MB. Try a smaller file or a lower-resolution photo.";
-    return;
+// ---- File handling: PDF/images -> base64, Word/PowerPoint/text -> extracted text ----
+let extractedText = "";
+const OFFICE_MAX = 15 * 1024 * 1024;
+const TEXT_CAP = 150000;
+const ext = (n) => n.toLowerCase().split(".").pop();
+const unxml = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+
+async function readDocx(buf) {
+  const r = await mammoth.extractRawText({ arrayBuffer: buf });
+  return r.value;
+}
+async function readPptx(buf) {
+  const zip = await JSZip.loadAsync(buf);
+  const num = (p) => +p.match(/(\d+)\.xml$/)[1];
+  const grab = (xml) => xml.split("</a:p>")
+    .map((par) => [...par.matchAll(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g)].map((m) => unxml(m[1])).join(""))
+    .filter((t) => t.trim()).join("\n");
+  const slides = Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p)).sort((a, b) => num(a) - num(b));
+  const out = [];
+  for (const p of slides) {
+    let block = "## Slide " + num(p) + "\n" + grab(await zip.file(p).async("string"));
+    const notes = zip.file("ppt/notesSlides/notesSlide" + num(p) + ".xml");
+    if (notes) {
+      const n = grab(await notes.async("string")).replace(/^\d+$/gm, "").trim();
+      if (n) block += "\nSpeaker notes: " + n;
+    }
+    out.push(block);
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    fileData = { mimeType: f.type || "application/pdf", data: reader.result.split(",")[1] };
-    $("fileinfo").textContent = "Ready: " + f.name;
-  };
-  reader.readAsDataURL(f);
+  return out.join("\n\n");
+}
+const toBase64 = (f) => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(r.result.split(",")[1]);
+  r.onerror = rej;
+  r.readAsDataURL(f);
+});
+
+$("file").onchange = async (e) => {
+  const f = e.target.files[0];
+  fileData = null; extractedText = ""; $("fileinfo").textContent = ""; $("error").textContent = "";
+  if (!f) return;
+  const x = ext(f.name);
+  const office = x === "docx" || x === "pptx";
+  const plain = x === "txt" || x === "md";
+  const reset = (msg) => { e.target.value = ""; $("error").textContent = msg; };
+
+  if (x === "doc" || x === "ppt") return reset("Old .doc/.ppt files aren't supported. Open it and use Save As .docx / .pptx first.");
+  if (f.size > (office || plain ? OFFICE_MAX : MAX_BYTES)) {
+    return reset(office || plain ? "That file is over 15 MB." : "That file is over 2 MB. Try a smaller file or a lower-resolution photo.");
+  }
+  try {
+    $("fileinfo").textContent = "Reading " + f.name + "...";
+    if (office) {
+      const buf = await f.arrayBuffer();
+      extractedText = (x === "docx" ? await readDocx(buf) : await readPptx(buf)).trim();
+      if (!extractedText) throw new Error("No text found");
+    } else if (plain) {
+      extractedText = (await f.text()).trim();
+    } else {
+      fileData = { mimeType: f.type || "application/pdf", data: await toBase64(f) };
+    }
+    extractedText = extractedText.slice(0, TEXT_CAP);
+    $("fileinfo").textContent = "Ready: " + f.name + (extractedText ? " (" + extractedText.length.toLocaleString() + " characters read)" : "");
+  } catch (err) {
+    reset("Couldn't read that file. If it's empty or only has pictures, try exporting it as a PDF.");
+    $("fileinfo").textContent = "";
+  }
 };
 
 // ---- Send to backend ----
 $("go").onclick = async () => {
-  const text = $("text").value, mode = $("mode").value;
+  const text = [$("text").value, extractedText].filter(Boolean).join("\n\n"), mode = $("mode").value;
   $("error").textContent = "";
   if (!text.trim() && !fileData) { $("error").textContent = "Paste some notes or upload a file first."; return; }
 

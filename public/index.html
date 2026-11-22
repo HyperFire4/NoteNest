@@ -36,8 +36,8 @@
     <label for="text">Paste your notes</label>
     <textarea id="text" rows="7" placeholder="Paste lecture text here"></textarea>
 
-    <label for="file">Or upload a PDF / photo of handwritten notes <span class="hint">(max 2 MB)</span></label>
-    <input id="file" type="file" accept="application/pdf,image/*">
+    <label for="file">Or upload a file <span class="hint">(PDF, Word, PowerPoint, text or a photo of handwriting)</span></label>
+    <input id="file" type="file" accept=".pdf,.docx,.pptx,.txt,.md,image/*">
     <p id="fileinfo" class="hint"></p>
 
     <div class="row">
@@ -64,6 +64,8 @@
   </ul>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
